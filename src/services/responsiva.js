@@ -56,12 +56,20 @@ function buildResponsivaHTML({ empresa, folio, equipo, empleado, fotos = [], ass
   const marcaModelo = `${equipo.marca || '—'} ${equipo.modelo || ''}`.trim();
   const esLaptop = equipo.categoria === 'Laptop';
 
-  const fotosSeccion = fotos.length ? `
-    <h4>Fotografías del equipo</h4>
-    <div class="cartaimgs">${fotos.map(b64 => `<img src="data:image/jpeg;base64,${b64}" alt="Fotografía del equipo al momento de la entrega">`).join('')}</div>
-  ` : '';
+  // Página 2: sección fija para evidencia fotográfica y observaciones capturadas al momento
+  // de la asignación. Se fuerza a iniciar página nueva para que siempre quede en la hoja 2,
+  // sin importar si el equipo es laptop (con guía de acceso) o no.
+  const evidenciaSeccion = `
+    ${esLaptop ? '' : '<div style="page-break-before: always;"></div>'}
+    <h4>Fotografías y observaciones de la entrega</h4>
+    ${fotos.length
+      ? `<div class="cartaimgs">${fotos.map(b64 => `<img src="data:image/jpeg;base64,${b64}" alt="Fotografía del equipo al momento de la entrega">`).join('')}</div>`
+      : `<p class="cartanote">Sin fotografías adjuntas.</p>`}
+    <p><strong>Observaciones:</strong> ${equipo.notas ? esc(equipo.notas) : 'Sin observaciones adicionales.'}</p>
+  `;
 
   const guiaAcceso = esLaptop ? `
+    <div style="page-break-before: always;"></div>
     <h4>Para el ingreso al equipo</h4>
     <ul>
       <li>En pantalla de inicio, seleccionar "Otro usuario".</li>
@@ -98,8 +106,6 @@ function buildResponsivaHTML({ empresa, folio, equipo, empleado, fotos = [], ass
       <li><strong>Nombre del equipo:</strong> ${esc(equipo.nombreEquipo) || '—'}</li>
     </ul>
 
-    ${fotosSeccion}
-
     <h4>Condiciones de uso</h4>
     <p>El empleado, <strong>${esc(empleado.nombre)}</strong>, declara haber recibido el equipo descrito anteriormente y acepta las siguientes condiciones:</p>
     <ol>
@@ -113,6 +119,8 @@ function buildResponsivaHTML({ empresa, folio, equipo, empleado, fotos = [], ass
     <p>Yo, <strong>${esc(empleado.nombre)}</strong>, declaro haber recibido el equipo de cómputo mencionado y me comprometo a cumplir con las responsabilidades y condiciones de uso establecidas en este documento. Entiendo que el equipo es propiedad de ${esc(empresa)} y me responsabilizo por su cuidado durante el tiempo que esté en mi posesión.</p>
 
     ${guiaAcceso}
+
+    ${evidenciaSeccion}
 
     <table class="cartafirmas">
       <tr><td><strong>${esc(empleado.nombre)}:</strong></td><td><strong>Analista de TI:</strong></td></tr>
