@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Empleado {
+  id            String   @id
+  nombre        String
+  correo        String
+  departamento  String?
+  puesto        String?
+  estado        String   @default("Activo")
+  equipos       Equipo[]
+  responsivas   Responsiva[]
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+}
+
+model Equipo {
+  folio             String    @id
+  categoria         String
+  subtipo           String?
+  marca             String?
+  modelo            String?
+  serie             String?
+  estado            String
+  ubicacion         String?
+  nombreEquipo      String?
+  condicion         String?
+  accesorios        String?
+
+  empleadoId        String?
+  empleado          Empleado? @relation(fields: [empleadoId], references: [id])
+
+  proveedor         String?
+  rfcProveedor      String?
+  numeroFactura     String?
+  fechaFactura      DateTime?
+  fechaInicioUso    DateTime?
+  montoFactura      Float?
+  tasaDepreciacion  Float?
+
+  garantiaMeses     Int?
+  notas             String?
+
+  fotosEntrega      Foto[]
+  responsivas       Responsiva[]
+
+  fechaRegistro     DateTime  @default(now())
+  actualizadoEn     DateTime  @updatedAt
+}
+
+model Foto {
+  id        String   @id @default(uuid())
+  equipo    Equipo   @relation(fields: [equipoFolio], references: [folio])
+  equipoFolio String
+  dataBase64 String  // considerar mover a almacenamiento de objetos (S3/Cloudflare R2) si crecen mucho
+  creadoEn  DateTime @default(now())
+}
+
+// Cada asignación que SÍ generó responsiva queda aquí (auditable).
+// Las asignaciones hechas en modo migración no crean registros aquí.
+model Responsiva {
+  id              String    @id @default(uuid())
+  folioResponsiva String    @unique
+  equipo          Equipo    @relation(fields: [equipoFolio], references: [folio])
+  equipoFolio     String
+  empleado        Empleado  @relation(fields: [empleadoId], references: [id])
+  empleadoId      String
+  htmlSnapshot    String    // copia del HTML generado, para auditoría aunque cambien los datos despues
+  correoEnviado   Boolean   @default(false)
+  correoError     String?
+  generadoEn      DateTime  @default(now())
+}
+
+model LimiteCategoria {
+  categoria String @id
+  limite    Int
+}
+
+model LimiteSubtipo {
+  subtipo String @id
+  limite  Int
+}
+
+// Config de llave/valor: nombre de empresa, mailbox de envío, modo migración, etc.
+model Config {
+  clave String @id
+  valor String
+}
+
+model FolioCounter {
+  id           Int @id @default(1)
+  ultimoNumero Int @default(0)
+}
+
+model Usuario {
+  id           String   @id @default(uuid())
+  correo       String   @unique
+  passwordHash String
+  rol          String   @default("admin") // "admin" (TI) o "lectura"
+  creadoEn     DateTime @default(now())
+}
