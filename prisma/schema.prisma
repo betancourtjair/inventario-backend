@@ -50,6 +50,7 @@ model Equipo {
 
   fechaDevolucionEsperada DateTime?
   correoPrestamoVencidoEnviado Boolean @default(false)
+  componenteCelular String? // "Equipo y SIM" | "Solo equipo" | "Solo SIM" — solo aplica si categoria = Celular
 
   fotosEntrega      Foto[]
   responsivas       Responsiva[]

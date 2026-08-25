@@ -184,7 +184,7 @@ router.get('/duplicados', requireAuth(), asyncHandler(async (req, res) => {
 }));
 
 function sanitizeEquipoInput(data) {
-  const campos = ['folio','categoria','subtipo','marca','modelo','serie','estado','ubicacion','nombreEquipo','condicion','accesorios','empleadoId','proveedor','rfcProveedor','numeroFactura','notas'];
+  const campos = ['folio','categoria','subtipo','marca','modelo','serie','estado','ubicacion','nombreEquipo','condicion','accesorios','empleadoId','proveedor','rfcProveedor','numeroFactura','notas','componenteCelular'];
   const out = {};
   for (const c of campos) if (data[c] !== undefined) out[c] = data[c] || null;
   if (data.fechaFactura) out.fechaFactura = new Date(data.fechaFactura);
