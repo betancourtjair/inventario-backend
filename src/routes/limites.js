@@ -1,16 +1,17 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { requireAuth } = require('../middleware/auth');
+const asyncHandler = require('../middleware/asyncHandler');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-router.get('/', requireAuth(), async (req, res) => {
+router.get('/', requireAuth(), asyncHandler(async (req, res) => {
   const categorias = await prisma.limiteCategoria.findMany();
   const subtipos = await prisma.limiteSubtipo.findMany();
   res.json({ categorias, subtipos });
-});
+}));
 
-router.put('/categoria/:categoria', requireAuth(['admin','super_admin']), async (req, res) => {
+router.put('/categoria/:categoria', requireAuth(['admin','super_admin']), asyncHandler(async (req, res) => {
   const { limite } = req.body;
   const row = await prisma.limiteCategoria.upsert({
     where: { categoria: req.params.categoria },
@@ -18,9 +19,9 @@ router.put('/categoria/:categoria', requireAuth(['admin','super_admin']), async 
     create: { categoria: req.params.categoria, limite },
   });
   res.json(row);
-});
+}));
 
-router.put('/subtipo/:subtipo', requireAuth(['admin','super_admin']), async (req, res) => {
+router.put('/subtipo/:subtipo', requireAuth(['admin','super_admin']), asyncHandler(async (req, res) => {
   const { limite } = req.body;
   const row = await prisma.limiteSubtipo.upsert({
     where: { subtipo: req.params.subtipo },
@@ -28,11 +29,16 @@ router.put('/subtipo/:subtipo', requireAuth(['admin','super_admin']), async (req
     create: { subtipo: req.params.subtipo, limite },
   });
   res.json(row);
-});
+}));
 
-router.delete('/subtipo/:subtipo', requireAuth(['admin','super_admin']), async (req, res) => {
-  await prisma.limiteSubtipo.delete({ where: { subtipo: req.params.subtipo } });
-  res.json({ ok: true });
-});
+router.delete('/subtipo/:subtipo', requireAuth(['admin','super_admin']), asyncHandler(async (req, res) => {
+  try {
+    await prisma.limiteSubtipo.delete({ where: { subtipo: req.params.subtipo } });
+    res.json({ ok: true });
+  } catch (e) {
+    if (e.code === 'P2025') return res.status(404).json({ error: `No existe un límite personalizado para "${req.params.subtipo}"` });
+    throw e;
+  }
+}));
 
 module.exports = router;

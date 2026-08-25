@@ -1,6 +1,7 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { requireAuth, requireAdminOrCron } = require('../middleware/auth');
+const asyncHandler = require('../middleware/asyncHandler');
 const { calcFiscal, calcGarantia, calcPrestamo } = require('../services/fiscal');
 const { siguienteFolioResponsiva, buildResponsivaHTML } = require('../services/responsiva');
 const { sendMail } = require('../services/graphEmail');
@@ -13,7 +14,7 @@ async function getConfigValor(clave, porDefecto = null) {
   return row ? row.valor : porDefecto;
 }
 
-router.get('/', requireAuth(), async (req, res) => {
+router.get('/', requireAuth(), asyncHandler(async (req, res) => {
   const equipos = await prisma.equipo.findMany({ include: { empleado: true, fotosEntrega: true } });
   const conCalculos = equipos.map(eq => ({
     ...eq,
@@ -22,9 +23,9 @@ router.get('/', requireAuth(), async (req, res) => {
     prestamo: calcPrestamo(eq),
   }));
   res.json(conCalculos);
-});
+}));
 
-router.post('/', requireAuth(['admin','super_admin']), async (req, res) => {
+router.post('/', requireAuth(['admin','super_admin']), asyncHandler(async (req, res) => {
   const data = req.body;
   if (!data.folio || !data.categoria || !data.estado) {
     return res.status(400).json({ error: 'folio, categoria y estado son obligatorios' });
@@ -33,27 +34,33 @@ router.post('/', requireAuth(['admin','super_admin']), async (req, res) => {
   if (existente) return res.status(409).json({ error: `El folio "${data.folio}" ya existe` });
   const equipo = await prisma.equipo.create({ data: sanitizeEquipoInput(data) });
   res.status(201).json(equipo);
-});
+}));
 
-router.put('/:folio', requireAuth(['admin','super_admin']), async (req, res) => {
-  const equipo = await prisma.equipo.update({
-    where: { folio: req.params.folio },
-    data: sanitizeEquipoInput(req.body),
-  });
-  res.json(equipo);
-});
+router.put('/:folio', requireAuth(['admin','super_admin']), asyncHandler(async (req, res) => {
+  try {
+    const equipo = await prisma.equipo.update({
+      where: { folio: req.params.folio },
+      data: sanitizeEquipoInput(req.body),
+    });
+    res.json(equipo);
+  } catch (e) {
+    if (e.code === 'P2025') return res.status(404).json({ error: `No existe un equipo con folio "${req.params.folio}"` });
+    throw e;
+  }
+}));
 
-router.delete('/:folio', requireAuth(['admin','super_admin']), async (req, res) => {
+router.delete('/:folio', requireAuth(['admin','super_admin']), asyncHandler(async (req, res) => {
   try {
     await prisma.equipo.delete({ where: { folio: req.params.folio } });
     res.json({ ok: true });
   } catch (e) {
+    if (e.code === 'P2025') return res.status(404).json({ error: `No existe un equipo con folio "${req.params.folio}" (puede que ya se haya eliminado).` });
     if (e.code === 'P2003') {
       return res.status(409).json({ error: 'No se puede eliminar: este equipo tiene historial de responsivas asociado (protección de auditoría). Cambia su estado a "Baja" en vez de borrarlo.' });
     }
     throw e;
   }
-});
+}));
 
 /**
  * Endpoint clave: asignar (o reasignar) un equipo a un empleado.
@@ -64,7 +71,7 @@ router.delete('/:folio', requireAuth(['admin','super_admin']), async (req, res) 
  *   la asignación se guarda "en silencio", pensado para la carga inicial de inventario.
  * - Si no está en modo migración, enviarCorreo decide si se genera la responsiva y se manda el correo.
  */
-router.post('/:folio/asignar', requireAuth(['admin','super_admin']), async (req, res) => {
+router.post('/:folio/asignar', requireAuth(['admin','super_admin']), asyncHandler(async (req, res) => {
   const { empleadoId, enviarCorreo, fotos } = req.body;
   const equipo = await prisma.equipo.findUnique({ where: { folio: req.params.folio } });
   if (!equipo) return res.status(404).json({ error: 'Equipo no encontrado' });
@@ -123,15 +130,15 @@ router.post('/:folio/asignar', requireAuth(['admin','super_admin']), async (req,
   });
 
   res.json({ ok: true, responsivaGenerada: true, folioResponsiva, correoEnviado, correoError, responsivaId: responsiva.id });
-});
+}));
 
 // Descarga el HTML de una responsiva ya generada (para imprimir/adjuntar manualmente si no se envió por correo).
-router.get('/responsivas/:id/html', requireAuth(), async (req, res) => {
+router.get('/responsivas/:id/html', requireAuth(), asyncHandler(async (req, res) => {
   const responsiva = await prisma.responsiva.findUnique({ where: { id: req.params.id } });
   if (!responsiva) return res.status(404).send('No encontrada');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(responsiva.htmlSnapshot);
-});
+}));
 
 /**
  * Importación masiva (CSV ya parseado en el frontend a JSON).
@@ -139,7 +146,7 @@ router.get('/responsivas/:id/html', requireAuth(), async (req, res) => {
  * Si modoMigracion es true, ninguno de los registros genera responsiva ni correo,
  * sin importar lo que diga la config global — pensado para la carga inicial.
  */
-router.post('/importar', requireAuth(['admin','super_admin']), async (req, res) => {
+router.post('/importar', requireAuth(['admin','super_admin']), asyncHandler(async (req, res) => {
   const { equipos } = req.body;
   if (!Array.isArray(equipos)) return res.status(400).json({ error: 'Se esperaba un arreglo "equipos"' });
   let agregados = 0, omitidos = 0;
@@ -151,9 +158,9 @@ router.post('/importar', requireAuth(['admin','super_admin']), async (req, res) 
     agregados++;
   }
   res.json({ agregados, omitidos });
-});
+}));
 
-router.get('/duplicados', requireAuth(), async (req, res) => {
+router.get('/duplicados', requireAuth(), asyncHandler(async (req, res) => {
   const limCategorias = await prisma.limiteCategoria.findMany();
   const limSubtipos = await prisma.limiteSubtipo.findMany();
   const limCatMap = Object.fromEntries(limCategorias.map(l => [l.categoria, l.limite]));
@@ -173,7 +180,7 @@ router.get('/duplicados', requireAuth(), async (req, res) => {
     if (g.folios.length > limite) resultado.push({ ...g, cantidad: g.folios.length, limite });
   }
   res.json(resultado);
-});
+}));
 
 function sanitizeEquipoInput(data) {
   const campos = ['folio','categoria','subtipo','marca','modelo','serie','estado','ubicacion','nombreEquipo','condicion','accesorios','empleadoId','proveedor','rfcProveedor','numeroFactura','notas'];
@@ -198,7 +205,7 @@ function sanitizeEquipoInput(data) {
  * desde un programador externo (ver README, sección "Préstamos vencidos"), pero también
  * se puede disparar a mano con un admin logueado.
  */
-router.post('/verificar-prestamos-vencidos', requireAdminOrCron, async (req, res) => {
+router.post('/verificar-prestamos-vencidos', requireAdminOrCron, asyncHandler(async (req, res) => {
   const vencidos = await prisma.equipo.findMany({
     where: {
       estado: 'Prestado',
@@ -237,6 +244,6 @@ router.post('/verificar-prestamos-vencidos', requireAdminOrCron, async (req, res
   }
 
   res.json({ revisados: vencidos.length, resultados });
-});
+}));
 
 module.exports = router;
