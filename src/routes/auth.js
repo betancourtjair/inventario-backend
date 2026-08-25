@@ -30,18 +30,29 @@ router.post('/bootstrap-admin', async (req, res) => {
   res.json({ ok: true, correo: usuario.correo });
 });
 
-module.exports = router;
+// Utilidad de un solo uso para nombrar al primer super_admin (se autobloquea después).
+// Requiere estar logueado como admin (cualquiera de los admins existentes puede ejecutarla una vez).
+router.post('/bootstrap-superadmin', requireAuth(['admin']), async (req, res) => {
+  const yaExisteSuperAdmin = await prisma.usuario.count({ where: { rol: 'super_admin' } });
+  if (yaExisteSuperAdmin > 0) return res.status(403).json({ error: 'Ya existe un super_admin; pídele a esa persona que use el endpoint de cambio de rol.' });
+  const { correo } = req.body;
+  if (!correo) return res.status(400).json({ error: 'correo es requerido' });
+  const usuario = await prisma.usuario.findUnique({ where: { correo } });
+  if (!usuario) return res.status(404).json({ error: `No existe un usuario con el correo ${correo}` });
+  await prisma.usuario.update({ where: { correo }, data: { rol: 'super_admin' } });
+  res.json({ ok: true, correo });
+});
 
-/* ---- Gestión de usuarios (solo admin) ---- */
-router.get('/usuarios', requireAuth(['admin']), async (req, res) => {
+/* ---- Gestión de usuarios (solo super_admin) ---- */
+router.get('/usuarios', requireAuth(['super_admin']), async (req, res) => {
   const usuarios = await prisma.usuario.findMany({ select: { id: true, correo: true, rol: true, creadoEn: true }, orderBy: { correo: 'asc' } });
   res.json(usuarios);
 });
 
-router.post('/usuarios', requireAuth(['admin']), async (req, res) => {
+router.post('/usuarios', requireAuth(['super_admin']), async (req, res) => {
   const { correo, password, rol } = req.body;
   if (!correo || !password || !rol) return res.status(400).json({ error: 'correo, password y rol son obligatorios' });
-  if (!['admin', 'lectura'].includes(rol)) return res.status(400).json({ error: 'rol debe ser "admin" o "lectura"' });
+  if (!['admin', 'lectura', 'super_admin'].includes(rol)) return res.status(400).json({ error: 'rol debe ser "admin", "lectura" o "super_admin"' });
   const existe = await prisma.usuario.findUnique({ where: { correo } });
   if (existe) return res.status(409).json({ error: `Ya existe un usuario con el correo ${correo}` });
   const passwordHash = await bcrypt.hash(password, 10);
@@ -49,13 +60,13 @@ router.post('/usuarios', requireAuth(['admin']), async (req, res) => {
   res.status(201).json({ id: usuario.id, correo: usuario.correo, rol: usuario.rol });
 });
 
-router.delete('/usuarios/:id', requireAuth(['admin']), async (req, res) => {
+router.delete('/usuarios/:id', requireAuth(['super_admin']), async (req, res) => {
   await prisma.usuario.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
 });
 
 // El admin resetea la contraseña de cualquier usuario (ej. si a alguien se le olvidó).
-router.put('/usuarios/:id/password', requireAuth(['admin']), async (req, res) => {
+router.put('/usuarios/:id/password', requireAuth(['super_admin']), async (req, res) => {
   const { password } = req.body;
   if (!password || password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
   const passwordHash = await bcrypt.hash(password, 10);
@@ -63,8 +74,16 @@ router.put('/usuarios/:id/password', requireAuth(['admin']), async (req, res) =>
   res.json({ ok: true, correo: usuario.correo });
 });
 
+// Cambiar el rol de un usuario existente (solo super_admin).
+router.put('/usuarios/:id/rol', requireAuth(['super_admin']), async (req, res) => {
+  const { rol } = req.body;
+  if (!['admin', 'lectura', 'super_admin'].includes(rol)) return res.status(400).json({ error: 'rol debe ser "admin", "lectura" o "super_admin"' });
+  const usuario = await prisma.usuario.update({ where: { id: req.params.id }, data: { rol } });
+  res.json({ id: usuario.id, correo: usuario.correo, rol: usuario.rol });
+});
+
 // Cualquier usuario autenticado cambia su propia contraseña, confirmando la actual.
-router.post('/cambiar-password', requireAuth(['admin', 'lectura']), async (req, res) => {
+router.post('/cambiar-password', requireAuth(['admin','lectura','super_admin']), async (req, res) => {
   const { passwordActual, passwordNueva } = req.body;
   if (!passwordActual || !passwordNueva) return res.status(400).json({ error: 'passwordActual y passwordNueva son obligatorios' });
   if (passwordNueva.length < 6) return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
@@ -76,3 +95,5 @@ router.post('/cambiar-password', requireAuth(['admin', 'lectura']), async (req, 
   await prisma.usuario.update({ where: { id: usuario.id }, data: { passwordHash } });
   res.json({ ok: true });
 });
+
+module.exports = router;

@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 
-function requireAuth(rolesPermitidos = ['admin', 'lectura']) {
+function requireAuth(rolesPermitidos = ['admin', 'lectura', 'super_admin']) {
   return (req, res, next) => {
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -26,7 +26,7 @@ function requireAdminOrCron(req, res, next) {
   if (cronSecret && process.env.CRON_SECRET && cronSecret === process.env.CRON_SECRET) {
     return next();
   }
-  return requireAuth(['admin'])(req, res, next);
+  return requireAuth(['admin','super_admin'])(req, res, next);
 }
 
 module.exports = { requireAuth, requireAdminOrCron };

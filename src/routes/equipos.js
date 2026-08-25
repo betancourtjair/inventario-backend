@@ -24,7 +24,7 @@ router.get('/', requireAuth(), async (req, res) => {
   res.json(conCalculos);
 });
 
-router.post('/', requireAuth(['admin']), async (req, res) => {
+router.post('/', requireAuth(['admin','super_admin']), async (req, res) => {
   const data = req.body;
   if (!data.folio || !data.categoria || !data.estado) {
     return res.status(400).json({ error: 'folio, categoria y estado son obligatorios' });
@@ -35,7 +35,7 @@ router.post('/', requireAuth(['admin']), async (req, res) => {
   res.status(201).json(equipo);
 });
 
-router.put('/:folio', requireAuth(['admin']), async (req, res) => {
+router.put('/:folio', requireAuth(['admin','super_admin']), async (req, res) => {
   const equipo = await prisma.equipo.update({
     where: { folio: req.params.folio },
     data: sanitizeEquipoInput(req.body),
@@ -43,7 +43,7 @@ router.put('/:folio', requireAuth(['admin']), async (req, res) => {
   res.json(equipo);
 });
 
-router.delete('/:folio', requireAuth(['admin']), async (req, res) => {
+router.delete('/:folio', requireAuth(['admin','super_admin']), async (req, res) => {
   try {
     await prisma.equipo.delete({ where: { folio: req.params.folio } });
     res.json({ ok: true });
@@ -64,7 +64,7 @@ router.delete('/:folio', requireAuth(['admin']), async (req, res) => {
  *   la asignación se guarda "en silencio", pensado para la carga inicial de inventario.
  * - Si no está en modo migración, enviarCorreo decide si se genera la responsiva y se manda el correo.
  */
-router.post('/:folio/asignar', requireAuth(['admin']), async (req, res) => {
+router.post('/:folio/asignar', requireAuth(['admin','super_admin']), async (req, res) => {
   const { empleadoId, enviarCorreo, fotos } = req.body;
   const equipo = await prisma.equipo.findUnique({ where: { folio: req.params.folio } });
   if (!equipo) return res.status(404).json({ error: 'Equipo no encontrado' });
@@ -139,7 +139,7 @@ router.get('/responsivas/:id/html', requireAuth(), async (req, res) => {
  * Si modoMigracion es true, ninguno de los registros genera responsiva ni correo,
  * sin importar lo que diga la config global — pensado para la carga inicial.
  */
-router.post('/importar', requireAuth(['admin']), async (req, res) => {
+router.post('/importar', requireAuth(['admin','super_admin']), async (req, res) => {
   const { equipos } = req.body;
   if (!Array.isArray(equipos)) return res.status(400).json({ error: 'Se esperaba un arreglo "equipos"' });
   let agregados = 0, omitidos = 0;

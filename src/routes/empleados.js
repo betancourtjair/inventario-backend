@@ -12,7 +12,7 @@ router.get('/', requireAuth(), async (req, res) => {
   res.json(empleados);
 });
 
-router.post('/', requireAuth(['admin']), async (req, res) => {
+router.post('/', requireAuth(['admin','super_admin']), async (req, res) => {
   const { id, nombre, correo, departamento, puesto, estado } = req.body;
   if (!id || !nombre || !correo) return res.status(400).json({ error: 'id, nombre y correo son obligatorios' });
   const existente = await prisma.empleado.findUnique({ where: { id } });
@@ -21,7 +21,7 @@ router.post('/', requireAuth(['admin']), async (req, res) => {
   res.status(201).json(empleado);
 });
 
-router.put('/:id', requireAuth(['admin']), async (req, res) => {
+router.put('/:id', requireAuth(['admin','super_admin']), async (req, res) => {
   const { nombre, correo, departamento, puesto, estado } = req.body;
   const empleado = await prisma.empleado.update({
     where: { id: req.params.id },
@@ -30,7 +30,7 @@ router.put('/:id', requireAuth(['admin']), async (req, res) => {
   res.json(empleado);
 });
 
-router.delete('/:id', requireAuth(['admin']), async (req, res) => {
+router.delete('/:id', requireAuth(['admin','super_admin']), async (req, res) => {
   const asignados = await prisma.equipo.count({ where: { empleadoId: req.params.id, estado: { not: 'Baja' } } });
   if (asignados > 0 && req.query.confirmar !== 'true') {
     return res.status(409).json({ error: `Este empleado tiene ${asignados} equipo(s) asignado(s). Reenvía la solicitud con ?confirmar=true para desasignarlos y eliminarlo.` });

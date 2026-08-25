@@ -10,7 +10,7 @@ router.get('/', requireAuth(), async (req, res) => {
 });
 
 // Ejemplo de body: { "empresaNombre": "Fitness Para Todos", "modoMigracion": "true" }
-router.put('/', requireAuth(['admin']), async (req, res) => {
+router.put('/', requireAuth(['admin','super_admin']), async (req, res) => {
   const entries = Object.entries(req.body);
   for (const [clave, valor] of entries) {
     await prisma.config.upsert({ where: { clave }, update: { valor: String(valor) }, create: { clave, valor: String(valor) } });
