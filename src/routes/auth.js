@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
+const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 const prisma = new PrismaClient();
 
@@ -30,3 +31,25 @@ router.post('/bootstrap-admin', async (req, res) => {
 });
 
 module.exports = router;
+
+/* ---- Gestión de usuarios (solo admin) ---- */
+router.get('/usuarios', requireAuth(['admin']), async (req, res) => {
+  const usuarios = await prisma.usuario.findMany({ select: { id: true, correo: true, rol: true, creadoEn: true }, orderBy: { correo: 'asc' } });
+  res.json(usuarios);
+});
+
+router.post('/usuarios', requireAuth(['admin']), async (req, res) => {
+  const { correo, password, rol } = req.body;
+  if (!correo || !password || !rol) return res.status(400).json({ error: 'correo, password y rol son obligatorios' });
+  if (!['admin', 'lectura'].includes(rol)) return res.status(400).json({ error: 'rol debe ser "admin" o "lectura"' });
+  const existe = await prisma.usuario.findUnique({ where: { correo } });
+  if (existe) return res.status(409).json({ error: `Ya existe un usuario con el correo ${correo}` });
+  const passwordHash = await bcrypt.hash(password, 10);
+  const usuario = await prisma.usuario.create({ data: { correo, passwordHash, rol } });
+  res.status(201).json({ id: usuario.id, correo: usuario.correo, rol: usuario.rol });
+});
+
+router.delete('/usuarios/:id', requireAuth(['admin']), async (req, res) => {
+  await prisma.usuario.delete({ where: { id: req.params.id } });
+  res.json({ ok: true });
+});
