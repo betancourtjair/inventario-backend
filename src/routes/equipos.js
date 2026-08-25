@@ -2,6 +2,7 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { requireAuth, requireAdminOrCron } = require('../middleware/auth');
 const asyncHandler = require('../middleware/asyncHandler');
+const { esViolacionLlaveForanea, esRegistroInexistente } = require('../utils/prismaErrors');
 const { calcFiscal, calcGarantia, calcPrestamo } = require('../services/fiscal');
 const { siguienteFolioResponsiva, buildResponsivaHTML } = require('../services/responsiva');
 const { sendMail } = require('../services/graphEmail');
@@ -44,7 +45,7 @@ router.put('/:folio', requireAuth(['admin','super_admin']), asyncHandler(async (
     });
     res.json(equipo);
   } catch (e) {
-    if (e.code === 'P2025') return res.status(404).json({ error: `No existe un equipo con folio "${req.params.folio}"` });
+    if (esRegistroInexistente(e)) return res.status(404).json({ error: `No existe un equipo con folio "${req.params.folio}"` });
     throw e;
   }
 }));
@@ -54,8 +55,8 @@ router.delete('/:folio', requireAuth(['admin','super_admin']), asyncHandler(asyn
     await prisma.equipo.delete({ where: { folio: req.params.folio } });
     res.json({ ok: true });
   } catch (e) {
-    if (e.code === 'P2025') return res.status(404).json({ error: `No existe un equipo con folio "${req.params.folio}" (puede que ya se haya eliminado).` });
-    if (e.code === 'P2003') {
+    if (esRegistroInexistente(e)) return res.status(404).json({ error: `No existe un equipo con folio "${req.params.folio}" (puede que ya se haya eliminado).` });
+    if (esViolacionLlaveForanea(e)) {
       return res.status(409).json({ error: 'No se puede eliminar: este equipo tiene historial de responsivas asociado (protección de auditoría). Cambia su estado a "Baja" en vez de borrarlo.' });
     }
     throw e;

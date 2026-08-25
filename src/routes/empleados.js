@@ -2,6 +2,7 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { requireAuth } = require('../middleware/auth');
 const asyncHandler = require('../middleware/asyncHandler');
+const { esViolacionLlaveForanea, esRegistroInexistente } = require('../utils/prismaErrors');
 const router = express.Router();
 const prisma = new PrismaClient();
 
@@ -46,8 +47,8 @@ router.delete('/:id', requireAuth(['admin','super_admin']), asyncHandler(async (
     await prisma.empleado.delete({ where: { id: req.params.id } });
     res.json({ ok: true });
   } catch (e) {
-    if (e.code === 'P2025') return res.status(404).json({ error: `No existe un empleado con ID "${req.params.id}" (puede que ya se haya eliminado).` });
-    if (e.code === 'P2003') {
+    if (esRegistroInexistente(e)) return res.status(404).json({ error: `No existe un empleado con ID "${req.params.id}" (puede que ya se haya eliminado).` });
+    if (esViolacionLlaveForanea(e)) {
       return res.status(409).json({ error: 'No se puede eliminar: este empleado tiene historial de responsivas asociado (protección de auditoría). Marca su estado como "Baja" en vez de borrarlo.' });
     }
     throw e;
