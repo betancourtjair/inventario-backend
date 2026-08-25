@@ -233,7 +233,7 @@ router.post('/verificar-prestamos-vencidos', requireAdminOrCron, asyncHandler(as
     try {
       await sendMail({
         to: eq.empleado.correo,
-        cc: correoAdminTI ? [correoAdminTI] : [],
+        cc: correoAdminTI ? correoAdminTI.split(',').map(s => s.trim()).filter(Boolean) : [],
         subject,
         htmlBody: html,
       });
