@@ -63,6 +63,16 @@ router.delete('/:folio', requireAuth(['admin','super_admin']), asyncHandler(asyn
   }
 }));
 
+// Borrado forzado: primero elimina el historial de responsivas de este equipo y luego el equipo.
+// Exclusivo de super_admin porque destruye evidencia de auditoría a propósito (ej. limpiar datos de prueba).
+router.delete('/:folio/force', requireAuth(['super_admin']), asyncHandler(async (req, res) => {
+  const equipo = await prisma.equipo.findUnique({ where: { folio: req.params.folio } });
+  if (!equipo) return res.status(404).json({ error: `No existe un equipo con folio "${req.params.folio}"` });
+  const { count } = await prisma.responsiva.deleteMany({ where: { equipoFolio: req.params.folio } });
+  await prisma.equipo.delete({ where: { folio: req.params.folio } });
+  res.json({ ok: true, responsivasEliminadas: count });
+}));
+
 /**
  * Endpoint clave: asignar (o reasignar) un equipo a un empleado.
  * body: { empleadoId, enviarCorreo: boolean (opcional), fotos: [base64,...] (opcional) }
