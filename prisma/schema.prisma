@@ -48,6 +48,9 @@ model Equipo {
   garantiaMeses     Int?
   notas             String?
 
+  fechaDevolucionEsperada DateTime?
+  correoPrestamoVencidoEnviado Boolean @default(false)
+
   fotosEntrega      Foto[]
   responsivas       Responsiva[]
 

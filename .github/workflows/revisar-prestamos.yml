@@ -1,0 +1,16 @@
+name: Revisar préstamos vencidos
+
+on:
+  schedule:
+    # 13:00 UTC ≈ 7:00 AM hora de Ciudad de México. Ajusta si tu zona horaria es distinta.
+    - cron: "0 13 * * *"
+  workflow_dispatch: {} # permite dispararlo a mano desde la pestaña "Actions" en GitHub
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar al endpoint de revisión de préstamos
+        run: |
+          curl -sf -X POST "${{ secrets.BACKEND_URL }}/api/equipos/verificar-prestamos-vencidos" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"

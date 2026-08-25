@@ -1,7 +1,7 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
-const { requireAuth } = require('../middleware/auth');
-const { calcFiscal, calcGarantia } = require('../services/fiscal');
+const { requireAuth, requireAdminOrCron } = require('../middleware/auth');
+const { calcFiscal, calcGarantia, calcPrestamo } = require('../services/fiscal');
 const { siguienteFolioResponsiva, buildResponsivaHTML } = require('../services/responsiva');
 const { sendMail } = require('../services/graphEmail');
 const assets = require('../assets');
@@ -19,6 +19,7 @@ router.get('/', requireAuth(), async (req, res) => {
     ...eq,
     fiscal: calcFiscal(eq),
     garantia: calcGarantia(eq),
+    prestamo: calcPrestamo(eq),
   }));
   res.json(conCalculos);
 });
@@ -180,10 +181,62 @@ function sanitizeEquipoInput(data) {
   for (const c of campos) if (data[c] !== undefined) out[c] = data[c] || null;
   if (data.fechaFactura) out.fechaFactura = new Date(data.fechaFactura);
   if (data.fechaInicioUso) out.fechaInicioUso = new Date(data.fechaInicioUso);
+  if (data.fechaDevolucionEsperada !== undefined) {
+    out.fechaDevolucionEsperada = data.fechaDevolucionEsperada ? new Date(data.fechaDevolucionEsperada) : null;
+    out.correoPrestamoVencidoEnviado = false; // si se cambia/renueva la fecha, vuelve a poder notificar
+  }
   if (data.montoFactura !== undefined) out.montoFactura = data.montoFactura ? parseFloat(data.montoFactura) : null;
   if (data.tasaDepreciacion !== undefined) out.tasaDepreciacion = data.tasaDepreciacion ? parseFloat(data.tasaDepreciacion) : null;
   if (data.garantiaMeses !== undefined) out.garantiaMeses = data.garantiaMeses ? parseInt(data.garantiaMeses) : null;
   return out;
 }
+
+/**
+ * Revisa préstamos vencidos (estado "Prestado" + fechaDevolucionEsperada ya pasada)
+ * y envía UN solo correo por préstamo (a quien lo tiene Y a TI en copia), marcando
+ * correoPrestamoVencidoEnviado para no repetirlo. Pensado para llamarse una vez al día
+ * desde un programador externo (ver README, sección "Préstamos vencidos"), pero también
+ * se puede disparar a mano con un admin logueado.
+ */
+router.post('/verificar-prestamos-vencidos', requireAdminOrCron, async (req, res) => {
+  const vencidos = await prisma.equipo.findMany({
+    where: {
+      estado: 'Prestado',
+      correoPrestamoVencidoEnviado: false,
+      fechaDevolucionEsperada: { lt: new Date() },
+      empleadoId: { not: null },
+    },
+    include: { empleado: true },
+  });
+
+  const correoAdminTI = await getConfigValor('correoAdminTI', null);
+  const empresa = await getConfigValor('empresaNombre', 'Fitness Para Todos');
+  const resultados = [];
+
+  for (const eq of vencidos) {
+    const dias = Math.abs(Math.round((new Date(eq.fechaDevolucionEsperada) - new Date()) / 86400000));
+    const subject = `Préstamo vencido — ${eq.folio}`;
+    const html = `
+      <p>Hola ${eq.empleado.nombre},</p>
+      <p>El equipo en préstamo con folio <strong>${eq.folio}</strong> (${eq.categoria}${eq.subtipo ? ' — ' + eq.subtipo : ''}, ${eq.marca || ''} ${eq.modelo || ''})
+      tenía fecha de devolución el <strong>${new Date(eq.fechaDevolucionEsperada).toLocaleDateString('es-MX')}</strong> y ya pasaron ${dias} día(s).</p>
+      <p>Por favor coordina su devolución con el área de TI de ${empresa} a la brevedad.</p>
+    `;
+    try {
+      await sendMail({
+        to: eq.empleado.correo,
+        cc: correoAdminTI ? [correoAdminTI] : [],
+        subject,
+        htmlBody: html,
+      });
+      await prisma.equipo.update({ where: { folio: eq.folio }, data: { correoPrestamoVencidoEnviado: true } });
+      resultados.push({ folio: eq.folio, ok: true });
+    } catch (e) {
+      resultados.push({ folio: eq.folio, ok: false, error: e.message });
+    }
+  }
+
+  res.json({ revisados: vencidos.length, resultados });
+});
 
 module.exports = router;

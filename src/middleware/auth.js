@@ -18,4 +18,15 @@ function requireAuth(rolesPermitidos = ['admin', 'lectura']) {
   };
 }
 
-module.exports = { requireAuth };
+// Para endpoints que dispara un programador externo (GitHub Actions, cron-job.org, etc.)
+// SIN que exista una sesión de usuario. Acepta también un admin logueado, para poder
+// probar el endpoint manualmente desde el panel.
+function requireAdminOrCron(req, res, next) {
+  const cronSecret = req.headers['x-cron-secret'];
+  if (cronSecret && process.env.CRON_SECRET && cronSecret === process.env.CRON_SECRET) {
+    return next();
+  }
+  return requireAuth(['admin'])(req, res, next);
+}
+
+module.exports = { requireAuth, requireAdminOrCron };

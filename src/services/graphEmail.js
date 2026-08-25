@@ -27,7 +27,7 @@ async function getAccessToken() {
  * Envía un correo desde el buzón configurado (GRAPH_SENDER_MAILBOX) vía Microsoft Graph.
  * Requiere que la app de Entra ID tenga el permiso de aplicación "Mail.Send" con consentimiento de administrador.
  */
-async function sendMail({ to, subject, htmlBody, attachments = [] }) {
+async function sendMail({ to, cc = [], subject, htmlBody, attachments = [] }) {
   const token = await getAccessToken();
   const mailbox = process.env.GRAPH_SENDER_MAILBOX;
   if (!mailbox) throw new Error('GRAPH_SENDER_MAILBOX no está configurado');
@@ -37,6 +37,7 @@ async function sendMail({ to, subject, htmlBody, attachments = [] }) {
       subject,
       body: { contentType: 'HTML', content: htmlBody },
       toRecipients: [{ emailAddress: { address: to } }],
+      ccRecipients: cc.filter(Boolean).map(addr => ({ emailAddress: { address: addr } })),
       attachments: attachments.map(a => ({
         '@odata.type': '#microsoft.graph.fileAttachment',
         name: a.filename,

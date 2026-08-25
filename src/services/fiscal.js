@@ -40,4 +40,14 @@ function calcGarantia(equipo) {
   return { fin, diasRestantes, status };
 }
 
-module.exports = { calcFiscal, calcGarantia };
+// Préstamo: un equipo con estado "Prestado" y una fecha de devolución esperada.
+// status: 'vigente' (aún en plazo), 'vencido' (ya debió devolverse), o null si no aplica.
+function calcPrestamo(equipo) {
+  if (equipo.estado !== 'Prestado' || !equipo.fechaDevolucionEsperada) return null;
+  const fecha = new Date(equipo.fechaDevolucionEsperada);
+  const diasRestantes = Math.round((fecha - new Date()) / 86400000);
+  const status = diasRestantes < 0 ? 'vencido' : 'vigente';
+  return { fechaDevolucionEsperada: fecha, diasRestantes, status };
+}
+
+module.exports = { calcFiscal, calcGarantia, calcPrestamo };

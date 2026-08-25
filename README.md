@@ -60,6 +60,7 @@ AZURE_TENANT_ID=...       # paso 3
 AZURE_CLIENT_ID=...       # paso 3
 AZURE_CLIENT_SECRET=...   # paso 3
 GRAPH_SENDER_MAILBOX=...  # paso 3
+CRON_SECRET=...           # cadena aleatoria larga; la usa el GitHub Action de préstamos (sección 6.1)
 CORS_ORIGIN=*             # restringir al dominio real del frontend cuando lo tengan
 ```
 
@@ -88,6 +89,31 @@ curl -X PUT https://TU-APP.onrender.com/api/config \
 Con esto activo, `/api/equipos/importar` y `/api/equipos/:folio/asignar` **no generan folio
 de responsiva ni envían correo**, sin importar lo que mande el frontend. Al terminar la
 carga, regresa `modoMigracion` a `"false"`.
+
+## 6.1 Préstamos y su aviso por correo (equipos con estado "Prestado")
+
+Un equipo con `estado = "Prestado"` puede llevar `fechaDevolucionEsperada`. Cuando esa
+fecha ya pasó, el endpoint `/api/equipos/verificar-prestamos-vencidos` manda **un solo
+correo** (a quien tiene el equipo, con TI en copia) y marca el préstamo como notificado
+para no repetirlo — si luego cambias la fecha de devolución, se vuelve a habilitar el aviso.
+
+Este endpoint necesita que alguien (o algo) lo llame una vez al día; no se dispara solo.
+Ya viene incluido un GitHub Action (`.github/workflows/revisar-prestamos.yml`) que lo hace
+por ti gratis. Para activarlo:
+
+1. Define en Config el correo de TI que debe ir en copia:
+   ```bash
+   curl -X PUT https://TU-APP.onrender.com/api/config \
+     -H "Authorization: Bearer TU_TOKEN" -H "Content-Type: application/json" \
+     -d '{"correoAdminTI":"ti@fitnessparatodos.com"}'
+   ```
+2. Genera un valor aleatorio largo para `CRON_SECRET` y agrégalo como variable de entorno en Render (además de las de la sección 4).
+3. En el repo de GitHub → **Settings → Secrets and variables → Actions** → **New repository secret**, crea:
+   - `BACKEND_URL` → la URL de tu app en Render (ej. `https://inventario-backend.onrender.com`, sin `/` al final)
+   - `CRON_SECRET` → el mismo valor que puso en Render
+4. Listo — corre todos los días a las 7am hora CDMX. También lo puedes disparar a mano desde la pestaña **Actions** del repo con "Run workflow".
+
+*(Alternativa si no quieren usar GitHub Actions: cualquier servicio de cron gratuito como [cron-job.org](https://cron-job.org) también puede llamar a esa URL con ese mismo header.)*
 
 ## 7. Qué falta para estar 100% listo
 
