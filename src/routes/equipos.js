@@ -193,19 +193,27 @@ router.get('/duplicados', requireAuth(), asyncHandler(async (req, res) => {
   res.json(resultado);
 }));
 
+function fechaSegura(valor) {
+  if (!valor) return null;
+  const d = new Date(valor);
+  return isNaN(d.getTime()) ? null : d;
+}
 function sanitizeEquipoInput(data) {
   const campos = ['folio','categoria','subtipo','marca','modelo','serie','estado','ubicacion','nombreEquipo','condicion','accesorios','empleadoId','proveedor','rfcProveedor','numeroFactura','notas','componenteCelular'];
   const out = {};
   for (const c of campos) if (data[c] !== undefined) out[c] = data[c] || null;
-  if (data.fechaFactura) out.fechaFactura = new Date(data.fechaFactura);
-  if (data.fechaInicioUso) out.fechaInicioUso = new Date(data.fechaInicioUso);
+  if (data.fechaFactura !== undefined) out.fechaFactura = fechaSegura(data.fechaFactura);
+  if (data.fechaInicioUso !== undefined) out.fechaInicioUso = fechaSegura(data.fechaInicioUso);
   if (data.fechaDevolucionEsperada !== undefined) {
-    out.fechaDevolucionEsperada = data.fechaDevolucionEsperada ? new Date(data.fechaDevolucionEsperada) : null;
+    out.fechaDevolucionEsperada = fechaSegura(data.fechaDevolucionEsperada);
     out.correoPrestamoVencidoEnviado = false; // si se cambia/renueva la fecha, vuelve a poder notificar
   }
   if (data.montoFactura !== undefined) out.montoFactura = data.montoFactura ? parseFloat(data.montoFactura) : null;
   if (data.tasaDepreciacion !== undefined) out.tasaDepreciacion = data.tasaDepreciacion ? parseFloat(data.tasaDepreciacion) : null;
   if (data.garantiaMeses !== undefined) out.garantiaMeses = data.garantiaMeses ? parseInt(data.garantiaMeses) : null;
+  if (out.montoFactura !== undefined && isNaN(out.montoFactura)) out.montoFactura = null;
+  if (out.tasaDepreciacion !== undefined && isNaN(out.tasaDepreciacion)) out.tasaDepreciacion = null;
+  if (out.garantiaMeses !== undefined && isNaN(out.garantiaMeses)) out.garantiaMeses = null;
   return out;
 }
 
