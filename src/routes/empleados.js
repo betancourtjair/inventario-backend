@@ -6,7 +6,7 @@ const { esViolacionLlaveForanea, esRegistroInexistente } = require('../utils/pri
 const router = express.Router();
 const prisma = new PrismaClient();
 
-const DEPARTAMENTOS_VALIDOS = ['DIRECCION', 'FINANZAS Y ADMON.', 'CRECIMIENTO HUMANO', 'OPERACIONES', 'MARKETING', 'CONSTRUCCION', 'EXPANSION', 'TI'];
+const DEPARTAMENTOS_VALIDOS = ['DIRECCION', 'FINANZAS', 'CRECIMIENTO HUMANO', 'OPERACIONES', 'MARKETING', 'CONSTRUCCION', 'EXPANSION', 'TI'];
 function quitarAcentos(s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 function normalizarDepartamento(valor) {
   if (!valor) return valor;
