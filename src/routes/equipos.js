@@ -198,10 +198,20 @@ function fechaSegura(valor) {
   const d = new Date(valor);
   return isNaN(d.getTime()) ? null : d;
 }
+const CATEGORIAS_VALIDAS = ['Laptop', 'CPU', 'Celular', 'Monitor', 'Otro'];
+const ESTADOS_VALIDOS = ['Activo', 'En reparación', 'En resguardo', 'Prestado', 'Baja'];
+function normalizarContraLista(valor, lista) {
+  if (!valor) return valor;
+  const limpio = String(valor).trim();
+  const match = lista.find(l => l.toLowerCase() === limpio.toLowerCase());
+  return match || limpio; // si no coincide con ninguna, se deja tal cual (recortado) en vez de perder el dato
+}
 function sanitizeEquipoInput(data) {
   const campos = ['folio','categoria','subtipo','marca','modelo','serie','estado','ubicacion','nombreEquipo','condicion','accesorios','empleadoId','proveedor','rfcProveedor','numeroFactura','notas','componenteCelular'];
   const out = {};
-  for (const c of campos) if (data[c] !== undefined) out[c] = data[c] || null;
+  for (const c of campos) if (data[c] !== undefined) out[c] = (typeof data[c] === 'string' ? data[c].trim() : data[c]) || null;
+  if (out.categoria) out.categoria = normalizarContraLista(out.categoria, CATEGORIAS_VALIDAS);
+  if (out.estado) out.estado = normalizarContraLista(out.estado, ESTADOS_VALIDOS);
   if (data.fechaFactura !== undefined) out.fechaFactura = fechaSegura(data.fechaFactura);
   if (data.fechaInicioUso !== undefined) out.fechaInicioUso = fechaSegura(data.fechaInicioUso);
   if (data.fechaDevolucionEsperada !== undefined) {
