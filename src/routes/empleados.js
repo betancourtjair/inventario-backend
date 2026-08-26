@@ -6,6 +6,15 @@ const { esViolacionLlaveForanea, esRegistroInexistente } = require('../utils/pri
 const router = express.Router();
 const prisma = new PrismaClient();
 
+const DEPARTAMENTOS_VALIDOS = ['DIRECCION', 'FINANZAS Y ADMON.', 'CRECIMIENTO HUMANO', 'OPERACIONES', 'MARKETING', 'CONSTRUCCION', 'EXPANSION'];
+function quitarAcentos(s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function normalizarDepartamento(valor) {
+  if (!valor) return valor;
+  const limpio = quitarAcentos(String(valor).trim()).toUpperCase();
+  const match = DEPARTAMENTOS_VALIDOS.find(d => quitarAcentos(d).toUpperCase() === limpio);
+  return match || String(valor).trim(); // si no coincide con la lista, se deja tal cual (recortado) en vez de perder el dato
+}
+
 router.get('/', requireAuth(), asyncHandler(async (req, res) => {
   const empleados = await prisma.empleado.findMany({
     include: { _count: { select: { equipos: true } } },
@@ -19,7 +28,7 @@ router.post('/', requireAuth(['admin','super_admin']), asyncHandler(async (req, 
   if (!id || !nombre || !correo) return res.status(400).json({ error: 'id, nombre y correo son obligatorios' });
   const existente = await prisma.empleado.findUnique({ where: { id } });
   if (existente) return res.status(409).json({ error: `El ID "${id}" ya existe` });
-  const empleado = await prisma.empleado.create({ data: { id, nombre, correo, departamento, puesto, estado: estado || 'Activo' } });
+  const empleado = await prisma.empleado.create({ data: { id, nombre, correo, departamento: normalizarDepartamento(departamento), puesto, estado: estado || 'Activo' } });
   res.status(201).json(empleado);
 }));
 
@@ -28,7 +37,7 @@ router.put('/:id', requireAuth(['admin','super_admin']), asyncHandler(async (req
   try {
     const empleado = await prisma.empleado.update({
       where: { id: req.params.id },
-      data: { nombre, correo, departamento, puesto, estado },
+      data: { nombre, correo, departamento: departamento !== undefined ? normalizarDepartamento(departamento) : undefined, puesto, estado },
     });
     res.json(empleado);
   } catch (e) {
