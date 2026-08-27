@@ -111,3 +111,17 @@ model Usuario {
   rol          String   @default("admin") // "admin" (TI) o "lectura"
   creadoEn     DateTime @default(now())
 }
+
+// Historial completo de a quién se le ha asignado cada equipo a lo largo del tiempo.
+// Se registra un renglón cada vez que cambia el empleadoId de un equipo (asignar,
+// reasignar o desasignar), sin importar si se generó responsiva o correo.
+model HistorialAsignacion {
+  id                String   @id @default(uuid())
+  equipoFolio       String
+  empleadoIdAnterior String?
+  empleadoIdNuevo    String?
+  fecha             DateTime @default(now())
+  realizadoPor      String?  // correo de quién hizo el cambio
+
+  @@index([equipoFolio])
+}

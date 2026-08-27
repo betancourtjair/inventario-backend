@@ -90,7 +90,18 @@ router.post('/:folio/asignar', requireAuth(['admin','super_admin']), asyncHandle
   const empleado = empleadoId ? await prisma.empleado.findUnique({ where: { id: empleadoId } }) : null;
   if (empleadoId && !empleado) return res.status(404).json({ error: 'Empleado no encontrado' });
 
-  await prisma.equipo.update({ where: { folio: equipo.folio }, data: { empleadoId: empleadoId || null } });
+  const nuevoEmpleadoId = empleadoId || null;
+  if (equipo.empleadoId !== nuevoEmpleadoId) {
+    await prisma.historialAsignacion.create({
+      data: {
+        equipoFolio: equipo.folio,
+        empleadoIdAnterior: equipo.empleadoId,
+        empleadoIdNuevo: nuevoEmpleadoId,
+        realizadoPor: req.usuario ? req.usuario.correo : null,
+      },
+    });
+  }
+  await prisma.equipo.update({ where: { folio: equipo.folio }, data: { empleadoId: nuevoEmpleadoId } });
 
   if (Array.isArray(fotos) && fotos.length) {
     await prisma.foto.deleteMany({ where: { equipoFolio: equipo.folio } });
@@ -169,6 +180,24 @@ router.post('/importar', requireAuth(['admin','super_admin']), asyncHandler(asyn
     agregados++;
   }
   res.json({ agregados, omitidos });
+}));
+
+// Historial completo de a quién se le ha asignado este equipo a lo largo del tiempo.
+router.get('/:folio/historial', requireAuth(), asyncHandler(async (req, res) => {
+  const registros = await prisma.historialAsignacion.findMany({
+    where: { equipoFolio: req.params.folio },
+    orderBy: { fecha: 'desc' },
+  });
+  const idsEmpleados = [...new Set(registros.flatMap(r => [r.empleadoIdAnterior, r.empleadoIdNuevo]).filter(Boolean))];
+  const empleados = idsEmpleados.length
+    ? await prisma.empleado.findMany({ where: { id: { in: idsEmpleados } }, select: { id: true, nombre: true } })
+    : [];
+  const nombrePorId = Object.fromEntries(empleados.map(e => [e.id, e.nombre]));
+  res.json(registros.map(r => ({
+    ...r,
+    empleadoAnteriorNombre: r.empleadoIdAnterior ? (nombrePorId[r.empleadoIdAnterior] || r.empleadoIdAnterior) : null,
+    empleadoNuevoNombre: r.empleadoIdNuevo ? (nombrePorId[r.empleadoIdNuevo] || r.empleadoIdNuevo) : null,
+  })));
 }));
 
 router.get('/duplicados', requireAuth(), asyncHandler(async (req, res) => {
