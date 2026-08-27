@@ -15,14 +15,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Instalar cliente de PostgreSQL
-        run: sudo apt-get update -qq && sudo apt-get install -y postgresql-client
+      - name: Instalar cliente de PostgreSQL 18 (misma versión que usa Neon)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y wget gnupg lsb-release
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-18
 
       - name: Generar respaldo
         run: |
           mkdir -p backups
           FECHA=$(date +%Y-%m-%d)
-          pg_dump "${{ secrets.DIRECT_URL_BACKUP }}" --no-owner --no-acl -F c -f "backups/backup-${FECHA}.dump"
+          /usr/lib/postgresql/18/bin/pg_dump "${{ secrets.DIRECT_URL_BACKUP }}" --no-owner --no-acl -F c -f "backups/backup-${FECHA}.dump"
           echo "Tamaño del respaldo:"
           ls -lh "backups/backup-${FECHA}.dump"
 
